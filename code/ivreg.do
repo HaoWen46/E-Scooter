@@ -468,7 +468,7 @@ esttab fs1 fs2 fs3 using "$FS_TEX", ///
     label ///
     booktabs ///
     replace ///
-    title("IV First Stage — PBGN Sample")
+    title("IV First Stage (Dependent variable: \textit{ln_installed_base})")
 
 di as txt ""
 di as txt "======================================================"
