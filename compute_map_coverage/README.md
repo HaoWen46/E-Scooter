@@ -122,6 +122,28 @@ Steps are identical to `compute_job.py` through the service area + sumlinelength
 
 ## Environment
 
-- micromamba env `qgis` (QGIS 3.44.7, GDAL 3.12.2, Python 3.14.2)
-- Headless: `QT_QPA_PLATFORM=offscreen`
-- QGIS exits 134/139/137 during Python cleanup are harmless; all scripts detect and treat them as success when output files exist
+**Compute nodes**: 4 machines sharing NFS storage, primary node `master` (140.112.176.245), each with:
+- CPU: 2× Intel Xeon Gold 6242 @ 2.80 GHz (16 cores/socket, 32 cores / 64 threads total)
+- RAM: ~1006 GiB
+
+**Work distribution**: `ONLY_MONTHS` env var splits the 360 CSV jobs across machines (e.g. months 1–3, 4–6, 7–9, 10–12). Each machine runs one job at a time (`MAX_JOBS=1`) due to per-job peak memory of ~22 GiB. GPKG batch (18 jobs) runs on a single machine.
+
+**Package manager**: micromamba (conda-forge channel), environment name `qgis`
+
+**Key packages**:
+
+| Package | Version |
+|---------|---------|
+| Python | 3.14.3 |
+| QGIS | 3.44.7 (Solothurn) |
+| GDAL | 3.12.2 |
+| PROJ | 9.7.1 |
+| GEOS | 3.14.1 |
+| PyQGIS / PyQt | 5.15.11 |
+| NumPy | 2.4.2 |
+| libspatialindex | 2.0.0 |
+| GNU parallel | 20260122 |
+
+**Headless**: `QT_QPA_PLATFORM=offscreen`
+
+QGIS exits 134/139/137 during Python cleanup are harmless; all scripts detect and treat them as success when output files exist.
