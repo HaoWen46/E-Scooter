@@ -128,7 +128,84 @@ Steps are identical to `compute_job.py` through the service area + sumlinelength
 
 **Work distribution**: `ONLY_MONTHS` env var splits the 360 CSV jobs across machines (e.g. months 1–3, 4–6, 7–9, 10–12). Each machine runs one job at a time (`MAX_JOBS=1`) due to per-job peak memory of ~22 GiB. GPKG batch (18 jobs) runs on a single machine.
 
-**Package manager**: micromamba (conda-forge channel), environment name `qgis`
+**Package manager**: micromamba 2.5.0 (conda-forge channel), environment name `qgis`
+
+**Setup** (Linux x86-64, bash):
+
+**Step 0 — Get the project files**
+
+The scripts must live at `~/maps/` (hardcoded in all scripts as `BASEDIR="$HOME/maps"`). Copy the entire project directory there:
+
+```bash
+cp -r /path/to/project ~/maps
+```
+
+Make sure the following are present before running anything:
+- `~/maps/base.gpkg` — pre-built road/boundary GeoPackage
+- `~/maps/data/stations_monthly/stations_YYYY_MM.csv` — monthly station CSVs
+- `~/maps/compute_job.py`, `run_one.sh`, `run_all_parallel.sh` (CSV pipeline)
+- `~/maps/compute_gpkg.py`, `run_gpkg_batch.sh` (GPKG pipeline)
+
+Make the shell scripts executable:
+
+```bash
+chmod +x ~/maps/run_one.sh ~/maps/run_all_parallel.sh ~/maps/run_gpkg_batch.sh
+```
+
+**Step 1 — Install micromamba**
+
+micromamba is a self-contained conda-compatible package manager. It does not require root.
+
+```bash
+# Create ~/bin if it doesn't exist
+mkdir -p ~/bin
+
+# Download and extract the binary
+curl -Ls https://micro.mamba.pm/api/micromamba/linux-64/latest \
+  | tar -xvj -C ~/bin --strip-components=1 bin/micromamba
+```
+
+Add the following lines to `~/.bashrc` (open it with any text editor, paste at the bottom, save):
+
+```bash
+export PATH="$HOME/bin:$PATH"
+export MAMBA_ROOT_PREFIX="$HOME/micromamba"
+eval "$(micromamba shell hook --shell bash)"
+```
+
+Then reload the shell:
+
+```bash
+source ~/.bashrc
+```
+
+Verify it works:
+
+```bash
+micromamba --version
+# Should print: 2.5.0 (or newer)
+```
+
+**Step 2 — Create the `qgis` environment**
+
+This downloads and installs QGIS, GDAL, Python, and all dependencies from conda-forge. Expect ~2–5 GB of downloads and several minutes to complete.
+
+```bash
+micromamba create -n qgis -c conda-forge \
+    qgis=3.44.7 gdal=3.12 python=3.14 numpy parallel --yes
+```
+
+**Step 3 — Verify QGIS works headlessly**
+
+```bash
+QT_QPA_PLATFORM=offscreen micromamba run -n qgis python3 -c \
+    "import qgis.core; print(qgis.core.Qgis.QGIS_VERSION)"
+# Expected: 3.44.7-Solothurn
+```
+
+If this prints the version without errors, the environment is ready.
+
+Scripts activate the env internally, so no manual `micromamba activate` is needed before running them.
 
 **Key packages**:
 
