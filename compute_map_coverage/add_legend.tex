@@ -1,0 +1,114 @@
+% ---------------------------------------------------------
+% Folder tree expected by this document:
+%
+% TP/
+%   tp2019.pdf
+%   tp2021.pdf
+%   tp2023.pdf
+%
+% TY/
+%   ty2019.pdf
+%   ty2021.pdf
+%   ty2023.pdf
+%
+% TC/
+%   tc2019.pdf
+%   tc2021.pdf
+%   tc2023.pdf
+%
+% TN/
+%   tn2019.pdf
+%   tn2021.pdf
+%   tn2023.pdf
+%
+% KS/
+%   ks2019.pdf
+%   ks2021.pdf
+%   ks2023.pdf
+%
+% The foreach loop below uses:
+%   \city  = folder name
+%   \prefix = filename prefix
+%
+% and constructs paths like: <CITY>/<prefix><year>.pdf
+% ---------------------------------------------------------
+
+
+\documentclass{article}
+
+\usepackage{graphicx}
+\usepackage{xcolor}
+\usepackage{tikz}
+\usepackage[margin=0pt]{geometry}
+
+\pagestyle{empty}
+\setlength{\parindent}{0pt}
+
+\definecolor{dist500}{HTML}{0A30E5}
+\definecolor{dist1000}{HTML}{4AA0E8}
+\definecolor{dist1500}{HTML}{A0BDDE}
+
+\newsavebox{\mapbox}
+\newlength{\mapw}
+\newlength{\maph}
+
+\newcommand{\mapwithlegend}[1]{%
+  \savebox{\mapbox}{%
+    \begin{tikzpicture}
+      \node[anchor=south west, inner sep=0] (map) at (0,0)
+        {\includegraphics{#1}};
+
+      \node[
+        anchor=south east,
+        fill=white,
+        fill opacity=0.92,
+        text opacity=1,
+        inner sep=6pt,
+        rounded corners=2pt
+      ] at ([xshift=-20pt,yshift=20pt]map.south east) {
+        \begin{tikzpicture}[x=1pt,y=1pt,baseline]
+          \fill[dist500]  (0,24)   rectangle (70,38);
+          \fill[dist1000] (70,24)  rectangle (140,38);
+          \fill[dist1500] (140,24) rectangle (210,38);
+
+          \draw[line width=0.6pt] (0,24) -- (210,24);
+          \foreach \x/\t in {0/0,70/500m,140/1000m,210/1500m}
+            \draw[line width=0.6pt] (\x,24) -- (\x,15)
+              node[font=\fontsize{13}{14}\selectfont, anchor=north] {\t};
+        \end{tikzpicture}
+      };
+    \end{tikzpicture}%
+  }%
+
+  \setlength{\mapw}{\wd\mapbox}%
+  \setlength{\maph}{\dimexpr\ht\mapbox+\dp\mapbox\relax}%
+
+  \pdfpagewidth=\mapw
+  \pdfpageheight=\maph
+
+  \newgeometry{
+    papersize={\the\mapw,\the\maph},
+    margin=0pt,
+    noheadfoot
+  }%
+
+  \noindent\usebox{\mapbox}
+  \clearpage
+}
+
+\begin{document}
+
+\foreach \city/\prefix in {
+  TP/tp,
+  TY/ty,
+  TC/tc,
+  TN/tn
+  KS/ks,
+
+}{
+  \foreach \year in {2019,2021,2023}{
+    \mapwithlegend{\city/\prefix\year.pdf}
+  }
+}
+
+\end{document}
