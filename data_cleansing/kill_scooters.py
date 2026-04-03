@@ -1,8 +1,9 @@
 import pandas as pd
 import numpy as np
 
-input_path = "../input/scooter_and_iv.csv"
-output_path = "../input/scooter_no_scooter.csv"
+input_path        = "../input/scooter_and_iv.csv"
+store_counts_path = "../input/store_counts_2018.csv"
+output_path       = "../input/scooter_no_scooter.csv"
 
 df = pd.read_csv(input_path)
 
@@ -26,22 +27,62 @@ print("[OK] app_date removed; using clean monthly 'date' column")
 
 # ------------------------------------------------------------
 # BUILD JUST THE 6 IVs YOU NEED
+# Store counts are lagged by one year: a row dated 2019-MM uses
+# the store counts from 2018-MM (loaded from store_counts_2018.csv).
+# For 2020 onwards the store counts from scooter_and_iv itself are
+# used, shifted back 12 months via a merge on (county, district, lag_date).
 # Requires: lag_n_iv already present in CSV
 # ------------------------------------------------------------
 if "lag_n_iv" not in df.columns:
     raise ValueError("lag_n_iv missing — cannot build IVs")
 
-log_lag = np.log(df["lag_n_iv"].clip(lower=1))  # avoid log(0)
+# ── build a one-year-lagged store count panel ──────────────────
+# Pull store columns that already exist in df (covers 2019-2023)
+store_cols = [
+    "open_stores7eleven", "open_storesfamilymart", "open_storeshilife",
+    "open_storesOK", "open_storespxmart",
+    "open_storescarrefour", "open_storesrtmart", "open_storessimplemart",
+]
+
+# Collapse df to unique (county, district, date) with store counts
+# (df is series-level; store counts are the same across series in a district-month)
+stores_current = (
+    df[["county", "district", "date"] + store_cols]
+    .drop_duplicates(subset=["county", "district", "date"])
+    .copy()
+)
+
+# Prepend the 2018 data so we have counts going back one year
+stores_2018 = pd.read_csv(store_counts_path, parse_dates=["date"])
+stores_2018 = stores_2018[["county", "district", "date"] + store_cols]
+
+stores_panel = pd.concat([stores_2018, stores_current], ignore_index=True)
+stores_panel = stores_panel.drop_duplicates(subset=["county", "district", "date"])
+
+# Build the lagged version: shift date forward one year so it merges onto the target year
+stores_lagged = stores_panel.copy()
+stores_lagged["date"] = stores_lagged["date"] + pd.DateOffset(years=1)
+stores_lagged = stores_lagged.rename(
+    columns={c: f"lag1y_{c}" for c in store_cols}
+)
+
+df = df.merge(stores_lagged, on=["county", "district", "date"], how="left")
+
+n_missing = df["lag1y_open_stores7eleven"].isna().sum()
+if n_missing > 0:
+    print(f"[WARN] {n_missing} rows have no 1-year-lagged store counts")
 
 def log1p_safe(x):
     return np.log(x.clip(lower=0) + 1)
 
-df["iv_7eleven"] = log_lag * log1p_safe(df["open_stores7eleven"])
-df["iv_familymart"] = log_lag * log1p_safe(df["open_storesfamilymart"])
-df["iv_okhilife"] = log_lag * log1p_safe(df["open_storesOK"] + df["open_storeshilife"])
-df["iv_pxmart"] = log_lag * log1p_safe(df["open_storespxmart"])
-df["iv_carrefour"] = log_lag * log1p_safe(df["open_storescarrefour"])
-df["iv_rtmartsimplemart"] = log_lag * log1p_safe(df["open_storesrtmart"] + df["open_storessimplemart"])
+log_lag = np.log(df["lag_n_iv"].clip(lower=1))
+
+df["iv_7eleven"]        = log_lag * log1p_safe(df["lag1y_open_stores7eleven"])
+df["iv_familymart"]     = log_lag * log1p_safe(df["lag1y_open_storesfamilymart"])
+df["iv_okhilife"]       = log_lag * log1p_safe(df["lag1y_open_storesOK"] + df["lag1y_open_storeshilife"])
+df["iv_pxmart"]         = log_lag * log1p_safe(df["lag1y_open_storespxmart"])
+df["iv_carrefour"]      = log_lag * log1p_safe(df["lag1y_open_storescarrefour"])
+df["iv_rtmartsimplemart"] = log_lag * log1p_safe(df["lag1y_open_storesrtmart"] + df["lag1y_open_storessimplemart"])
 
 # ------------------------------------------------------------
 # KEEP LIST
@@ -105,10 +146,14 @@ n_dups = dups.sum()
 
 if n_dups > 0:
     print(f"\n[WARN] Found {n_dups} duplicated (county, district, date) rows.")
-    print("       Keeping first occurrence per key.")
-    clean = clean.drop_duplicates(
-        subset=["county", "district", "date"],
-        keep="first"
+    print("       Keeping row with best iv_7eleven per key.")
+    # prefer rows where iv_7eleven is not null so IVs aren't needlessly missing
+    clean = (
+        clean
+        .sort_values(["county", "district", "date", "iv_7eleven"],
+                     ascending=[True, True, True, False],
+                     na_position="last")
+        .drop_duplicates(subset=["county", "district", "date"], keep="first")
     )
 
 # ------------------------------------------------------------
